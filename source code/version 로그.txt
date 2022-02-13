@@ -1,0 +1,95 @@
+﻿마이크로프로세서설계실험 term project(세계시계)
+
+5+2/12
+
+변경사항(21.06.06 일) ver 6.6.1
+
+O	1. 각 screen_init마다 seg_out=0을 함(mainmenu가 안되었던 이유)
+O(효과x)	2. screenout 마지막에 msg_init문이 추가되었던 부분 삭제(다시생각해보니 얼마나 화면출력 문제를 해결할지는 미지수)
+X	3. time관련
+	   -1 timestop을 (void (*)())NULL로 모두 변경
+	   -2 현재시간설정 마지막에 currenttime_run 주석 처리
+	   -3 timeformat2timeInt 내부 초 출력 없도록 변경
+	   -4 NVIC에서 LPIT_ch1(timer inturrupt) 재 활성화 및 우선순위 버튼inturrupt 뒤로 바꿈
+
+
+변경사항(21.06.07 월) ver 6.7.1 mon
+
+X	1. interupt 및 switch_config 작동 구조 변경
+	  -기존 : 1)interrup함수들이 screen구조체 자체에 내부적으로 존재
+	             2)switch_config
+	               (1) 출력
+	                 [ LCD_List ]  ====screentype_list()====>  [screenData]  ====screen_out()====> 출력
+	               (2)내용변경
+	                  현재 interrupt func 내에서 interrupt함수 변경할 때 마다 char* 선언 후 LCD_List 내 switch_config에 할당
+	             3) interruptnum 전역변수 == current_interrupt 구조체 내부(같은 값, 두개 변수)
+	                  ==>reconfig_currstate() 에서 둘 다 변경하고 있음
+
+	  -변경 : 1) -[interruptSet] 구조체 새로 선언, interrup함수&switch_config
+	                 -interruptSet* set_interruptSet()
+	                 -[screenData] 구조체 내부 변경
+	                    (1) interruptfunc 선언 제거 ---> interruptSet** 배열 선언
+	                    (2) switch_config 선언 제거 ---> interrruptSet 내부 이용
+	                           이유 : 버튼기능이 바뀔때는 interrupt함수와 switch_config가 바뀌고, 아닐때는 둘다 유지되므로, switch_config를
+	                                     interrupt함수와 분리할 필요 없이 같은 구조체내 선언
+	                                     그리고 정해진 interrupt 외에는 바뀔 일이 없으므로 screenData내부에 따로 둘 필요가 없다. 
+	                 -screen_init함수에서 switch_config 문자배열 모두 선언--> interruptSet** 배열 malloc --> set_interruptSet()로 각 요소 선언
+	             2)switch_config
+	               (1) 출력
+	                 screen_out()에서 interruptSet[intrpt_currnut] 내의 switch_config에 접근하여 출력에 이용하도록 변경
+	                 [LCD_list] 구조체와 screentype_list(), set_LCD_list
+	                 [screenData]  ====screen_out()====> 출력
+	               (2)내용변경
+	                  reconfig_currstate()에서 currscreen내부의 intrpt_currnum만 변경
+	             3) interruptnum 전역변수 제거(어차피 screen마다 interrupt 따로 유지)
+	                  ==>reconfig_currstate() 내부도 변경
+	  이에 따라 모든 screen_init 함수들과 interruptfunc 함수들의 내부 변경
+O	2. 전역변수 변수이름 변경 modenum,screennum->curr_modeNum, curr_screenNum
+	
+O	3. screen_init 함수들 내부 추가 변수 선언 및 "screenData* thisscreen=((modeData*)total_modes[modeNum])->screens[screenNum] //현재화면" 선언 및 교체를 통한 코드 간략화 및 가독성 강화
+	    mode_init
+	
+Δ	4. 명명규칙 추가(접두 접미어)
+	 1) 함수
+	  1.
+	   set_~ ():각 구조체를 malloc하고 초기화하여 return
+	   ~_init(): 프로그램 로딩을 위해 각 구조 요소 초기화(메모리공간 확보 및 프로그램 할당)
+	   2. mode_~() : 모드 관련 함수
+	       screen_~(): 스크린 관련 함수
+	       time~() : 시간관련 함수
+	       interrupt_~(): 인터럽트 함수
+	       screentype_list~(): screentype_list 관련 함수
+	   3. screentype: 화면종류
+	 2) 변수
+	   ~num : 각종 구조체 배열의 index 정보
+	   total_~num: 각종 구조체 배열의 크기(요소개수)
+	   curr_~num : 현재상태로 유지되는 전역변수
+	   this~: init함수 내에서 현재 선언후 초기회 되고 있는 구조체
+	
+	
+O	5. interrupt내부의 list up, down을 따로 함수로 분리하여 사용
+	    screenType_list_operation_UP(list), screenType_list_operation_Down(list)
+	
+X	6. interrupt 내부의 time up, down을 따로 함수로 분리하여 사용 : timeInt_currtimeset_opertion(int *time_sel, int direction, int *timeInt)
+	    direction : 0/down, else/up
+	
+O	7. screenType_list_rewriteLine(list, line, n) : list 내 n번째 줄을 line으로 대체(아직 이용하지는 않음=>잘 작동)
+	
+변경사항(21.06.07 월) ver 6.7.2 mon
+	
+X	1. 헤더파일 충돌방지 전처리 추가(#ifndef)
+Δ	2. extern로 전역변수 공유 후 코드 분할(clock_program_run.c, clock_program_initializer.h, clock_program_interrupt.h)
+	    ->통합헤더파일 추가(clock_program_header);
+
+
+변경사항(21.06.08 화) ver 6.8.2 tue
+
+	1. screen_out 관련 변경
+O	  (1) (seg_out 내부에서 제거(X))-> main함수 while문 내
+O	  (2) screen_out함수 콜 : main함수 while문---->push interrupt
+X	  (3) reset구문 추가 후 delay(200)
+X	  (4) 각 줄 출력 끝나기 직전 delay(200)
+
+변경사항(21.06.09 수) ver 6.9.1 wed
+
+O	1. 화면출력 잔상 발생 해결(배열 메모리 충돌 문제)===>사용배열 전역변수로 변경(코드정리 덤)
